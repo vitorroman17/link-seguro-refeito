@@ -1,0 +1,21 @@
+2025-09-05T19:30:34Z INF Starting tunnel tunnelID=66ff7d96-b54e-4cac-ab63-29ab8a448309
+2025-09-05T19:30:34Z INF Version 2025.8.1 (Checksum b5d598b00cc3a28cabc5812d9f762819334614bae452db4e7f23eefe7b081556)
+2025-09-05T19:30:34Z INF GOOS: windows, GOVersion: go1.24.2, GoArch: amd64
+2025-09-05T19:30:34Z INF Settings: map[config:C:\Users\Noeli\.cloudflared\config.yml cred-file:C:\Users\Noeli\.cloudflared\66ff7d96-b54e-4cac-ab63-29ab8a448309.json credentials-file:C:\Users\Noeli\.cloudflared\66ff7d96-b54e-4cac-ab63-29ab8a448309.json]
+2025-09-05T19:30:34Z INF cloudflared will not automatically update on Windows systems.
+2025-09-05T19:30:34Z INF Generated Connector ID: d9327225-b249-4b77-87d0-cbb5d20a2017
+2025-09-05T19:30:34Z INF Initial protocol quic
+2025-09-05T19:30:34Z INF ICMP proxy will use 192.168.0.9 as source for IPv4
+2025-09-05T19:30:34Z INF ICMP proxy will use 2804:30c:d1f:e901:17d9:b7b5:1ad3:8ed0 in zone Wi-Fi as source for IPv6
+2025-09-05T19:30:34Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2025-09-05T19:30:34Z INF ICMP proxy will use 192.168.0.9 as source for IPv4
+2025-09-05T19:30:34Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.53
+2025-09-05T19:30:34Z INF ICMP proxy will use 2804:30c:d1f:e901:17d9:b7b5:1ad3:8ed0 in zone Wi-Fi as source for IPv6
+2025-09-05T19:30:34Z INF Starting metrics server on 127.0.0.1:20241/metrics
+2025-09-05T19:30:35Z INF Registered tunnel connection connIndex=0 connection=64fbca93-e106-44f4-aafb-542e62130d0f event=0 ip=198.41.200.53 location=gru17 protocol=quic
+2025-09-05T19:30:35Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=1 event=0 ip=198.41.192.107
+2025-09-05T19:30:35Z INF Registered tunnel connection connIndex=1 connection=fcef0a0b-d4c5-413f-9900-c9aaee678b42 event=0 ip=198.41.192.107 location=nvt01 protocol=quic
+2025-09-05T19:30:36Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=2 event=0 ip=198.41.200.13
+2025-09-05T19:30:37Z INF Registered tunnel connection connIndex=2 connection=ff789f2e-f8fa-4498-8c07-2fffba8ede16 event=0 ip=198.41.200.13 location=gru18 protocol=quic
+2025-09-05T19:30:37Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=3 event=0 ip=198.41.192.167
+2025-09-05T19:30:38Z INF Registered tunnel connection connIndex=3 connection=76d448da-170e-4368-a022-f8964b7bafca event=0 ip=198.41.192.167 location=nvt01 protocol=quic

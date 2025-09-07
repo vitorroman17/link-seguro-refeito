@@ -1,0 +1,46 @@
+2025-09-05T19:24:40Z INF Starting tunnel tunnelID=66ff7d96-b54e-4cac-ab63-29ab8a448309
+2025-09-05T19:24:40Z INF Version 2025.8.1 (Checksum b5d598b00cc3a28cabc5812d9f762819334614bae452db4e7f23eefe7b081556)
+2025-09-05T19:24:40Z INF GOOS: windows, GOVersion: go1.24.2, GoArch: amd64
+2025-09-05T19:24:40Z INF Settings: map[config:C:\Users\Noeli\.cloudflared\config.yml cred-file:C:\Users\Noeli\.cloudflared\66ff7d96-b54e-4cac-ab63-29ab8a448309.json credentials-file:C:\Users\Noeli\.cloudflared\66ff7d96-b54e-4cac-ab63-29ab8a448309.json]
+2025-09-05T19:24:40Z INF cloudflared will not automatically update on Windows systems.
+2025-09-05T19:24:40Z INF Generated Connector ID: dfecdfb6-e642-4a85-b7c8-944cc40fdeb9
+2025-09-05T19:24:40Z INF Initial protocol quic
+2025-09-05T19:24:40Z INF ICMP proxy will use 192.168.0.9 as source for IPv4
+2025-09-05T19:24:40Z INF ICMP proxy will use 2804:30c:d1f:e901:17d9:b7b5:1ad3:8ed0 in zone Wi-Fi as source for IPv6
+2025-09-05T19:24:40Z INF cloudflared does not support loading the system root certificate pool on Windows. Please use --origin-ca-pool <PATH> to specify the path to the certificate pool
+2025-09-05T19:24:40Z INF ICMP proxy will use 192.168.0.9 as source for IPv4
+2025-09-05T19:24:40Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=0 event=0 ip=198.41.200.63
+2025-09-05T19:24:40Z INF ICMP proxy will use 2804:30c:d1f:e901:17d9:b7b5:1ad3:8ed0 in zone Wi-Fi as source for IPv6
+2025-09-05T19:24:40Z INF Starting metrics server on 127.0.0.1:20242/metrics
+2025-09-05T19:24:41Z INF Registered tunnel connection connIndex=0 connection=10a0c985-9b5d-4e1d-9aec-e4be0ade00b0 event=0 ip=198.41.200.63 location=gru19 protocol=quic
+2025-09-05T19:24:41Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=1 event=0 ip=198.41.192.107
+2025-09-05T19:24:42Z INF Registered tunnel connection connIndex=1 connection=92b2fae4-d05c-474b-badb-a83db4944eaf event=0 ip=198.41.192.107 location=nvt01 protocol=quic
+2025-09-05T19:24:42Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=2 event=0 ip=198.41.200.53
+2025-09-05T19:24:43Z INF Registered tunnel connection connIndex=2 connection=bb64f18a-2768-4d97-a387-3680966b2e27 event=0 ip=198.41.200.53 location=gru02 protocol=quic
+2025-09-05T19:24:43Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveP256] connIndex=3 event=0 ip=198.41.192.7
+2025-09-05T19:24:44Z INF Registered tunnel connection connIndex=3 connection=49a2bede-bd96-46d7-a147-ba0a6c1d3c16 event=0 ip=198.41.192.7 location=nvt01 protocol=quic
+2025-09-05T19:30:16Z INF Initiating graceful shutdown due to signal terminated ...
+2025-09-05T19:30:16Z ERR failed to run the datagram handler error="context canceled" connIndex=1 event=0 ip=198.41.192.107
+2025-09-05T19:30:16Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=1 event=0 ip=198.41.192.107
+2025-09-05T19:30:16Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=1 event=0 ip=198.41.192.107
+2025-09-05T19:30:16Z INF Retrying connection in up to 1s connIndex=1 event=0 ip=198.41.192.107
+2025-09-05T19:30:16Z ERR Connection terminated connIndex=1
+2025-09-05T19:30:16Z ERR failed to run the datagram handler error="context canceled" connIndex=0 event=0 ip=198.41.200.63
+2025-09-05T19:30:16Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.63
+2025-09-05T19:30:16Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=0 event=0 ip=198.41.200.63
+2025-09-05T19:30:16Z INF Retrying connection in up to 1s connIndex=0 event=0 ip=198.41.200.63
+2025-09-05T19:30:16Z ERR Connection terminated connIndex=0
+2025-09-05T19:30:16Z ERR failed to run the datagram handler error="context canceled" connIndex=2 event=0 ip=198.41.200.53
+2025-09-05T19:30:16Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=2 event=0 ip=198.41.200.53
+2025-09-05T19:30:16Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=2 event=0 ip=198.41.200.53
+2025-09-05T19:30:16Z INF Retrying connection in up to 1s connIndex=2 event=0 ip=198.41.200.53
+2025-09-05T19:30:16Z ERR Connection terminated connIndex=2
+2025-09-05T19:30:17Z ERR failed to run the datagram handler error="context canceled" connIndex=3 event=0 ip=198.41.192.7
+2025-09-05T19:30:17Z ERR failed to serve tunnel connection error="accept stream listener encountered a failure while serving" connIndex=3 event=0 ip=198.41.192.7
+2025-09-05T19:30:17Z ERR Serve tunnel error error="accept stream listener encountered a failure while serving" connIndex=3 event=0 ip=198.41.192.7
+2025-09-05T19:30:17Z INF Retrying connection in up to 1s connIndex=3 event=0 ip=198.41.192.7
+2025-09-05T19:30:17Z ERR Connection terminated connIndex=3
+2025-09-05T19:30:17Z ERR no more connections active and exiting
+2025-09-05T19:30:17Z INF Tunnel server stopped
+2025-09-05T19:30:17Z ERR icmp router terminated error="context canceled"
+2025-09-05T19:30:17Z INF Metrics server stopped

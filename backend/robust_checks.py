@@ -1,0 +1,203 @@
+from __future__ import annotations
+
+import re
+import socket
+import ssl
+import time
+from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
+from http.client import HTTPConnection, HTTPSConnection
+from ipaddress import ip_address, ip_network
+from typing import List, Optional, Tuple
+from urllib.parse import urlparse, urljoin
+
+_REDIRECTS = {301, 302, 303, 307, 308}
+_PRIVATE_NETS = [
+    ip_network("10.0.0.0/8"),
+    ip_network("172.16.0.0/12"),
+    ip_network("192.168.0.0/16"),
+    ip_network("127.0.0.0/8"),
+    ip_network("::1/128"),
+    ip_network("fc00::/7"),
+    ip_network("fe80::/10"),
+]
+_SHORTENERS = {
+    "bit.ly","bitly.com","t.co","goo.gl","is.gd","cutt.ly","rebrand.ly",
+    "buff.ly","ow.ly","s.id","tinyurl.com","lnkd.in","adf.ly"
+}
+
+# Palavras comuns (peso moderado) e CRÍTICAS (peso alto)
+_KEYWORDS = [
+    "conta","senha","verificar","confirmar","pix","boleto","nota","nf",
+    "comprovante","rastreio","rastreamento","suporte","premio","ganhe",
+    "atualize","cartao","banco","itau","bb","bradesco","nubank",
+    "mercadolivre","whatsapp","update","secure","verify","payment",
+    "invoice","bank","bonus","gift"
+]
+_KEYWORDS_CRIT = [
+    "login","phish","phishing","pix","boleto","senha","verify","payment","invoice","bank"
+]
+
+def _is_private_ip(ip: str) -> bool:
+    try:
+        return any(ip_address(ip) in net for net in _PRIVATE_NETS)
+    except Exception:
+        return False
+
+def _is_ip_literal(host: str) -> bool:
+    try:
+        ip_address(host); return True
+    except Exception:
+        return False
+
+def _resolve_host(host: str) -> Tuple[List[str], Optional[str]]:
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        ips = []
+        for _fam, _sock, _proto, _canon, sockaddr in infos:
+            ips.append(sockaddr[0])
+        seen, uniq = set(), []
+        for ip in ips:
+            if ip not in seen:
+                seen.add(ip); uniq.append(ip)
+        return uniq, None
+    except Exception as e:
+        return [], str(e)
+
+def _cert_days_left(host: str, port: int = 443, timeout: float = 5.0) -> Optional[int]:
+    try:
+        ctx = ssl.create_default_context()
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as s:
+                cert = s.getpeercert()
+        not_after = cert.get("notAfter")
+        if not_after:
+            expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y GMT")
+            delta = expires.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)
+            return max(int(delta.total_seconds() // 86400), -9999)
+    except Exception:
+        pass
+    return None
+
+def _head(url: str, timeout: float = 6.0) -> Tuple[int, dict]:
+    parsed = urlparse(url)
+    conn_cls = HTTPSConnection if parsed.scheme == "https" else HTTPConnection
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    path = parsed.path or "/"
+    if parsed.query:
+        path += f"?{parsed.query}"
+    headers = {"User-Agent": "linksafe/1.0"}
+    conn = conn_cls(parsed.hostname, port, timeout=timeout)
+    try:
+        conn.request("HEAD", path, headers=headers)
+        resp = conn.getresponse()
+        status = resp.status
+        hdrs = {k.lower(): v for (k, v) in resp.getheaders()}
+        resp.read()
+        conn.close()
+        return status, hdrs
+    except Exception:
+        try: conn.close()
+        except Exception: pass
+        return 0, {}
+
+def _follow_redirects(url: str, max_hops: int = 4) -> Tuple[str, int, int]:
+    hops = 0
+    last_status = 0
+    current = url
+    for _ in range(max_hops):
+        status, hdrs = _head(current)
+        last_status = status
+        if status in _REDIRECTS and "location" in hdrs:
+            current = urljoin(current, hdrs["location"])
+            hops += 1
+            continue
+        break
+    return current, hops, last_status
+
+from dataclasses import dataclass
+@dataclass
+class HeuristicResult:
+    decision: str          # safe | suspicious | dangerous | unknown
+    score: int
+    http_status: int
+    final_url: str
+    redirects: int
+    risks: List[str]
+    def to_dict(self):
+        d = asdict(self)
+        d.pop("final_url", None)
+        d.pop("redirects", None)
+        return d
+
+def analyze_url(raw_url: str, budget_ms: int = 3500) -> HeuristicResult:
+    t0 = time.time()
+    risks: List[str] = []
+    score = 0
+    http_status = 0
+
+    u = raw_url.strip()
+    parsed = urlparse(u)
+    if parsed.scheme not in {"http","https"}:
+        risks.append("sem_esquema_http_https"); score += 25
+    host = parsed.hostname or ""
+    if not host:
+        risks.append("sem_host")
+        return HeuristicResult("unknown", score + 40, http_status, raw_url, 0, risks)
+
+    if _is_ip_literal(host): risks.append("host_ip_literal"); score += 20
+    if host.startswith("xn--"): risks.append("punycode_host"); score += 20
+    if parsed.port and parsed.port not in (80, 443):
+        risks.append(f"porta_nao_padrao_{parsed.port}"); score += 15
+    if "@" in u: risks.append("arroba_na_url"); score += 10
+    if host.count(".") >= 4 or host.count("-") >= 3 or len(host) > 60:
+        risks.append("host_complexo"); score += 10
+
+    if host.lower() in _SHORTENERS:
+        risks.append("encurtador"); score += 20
+
+    path_q = (parsed.path + " " + (parsed.query or "")).lower()
+
+    # Palavras CRÍTICAS (peso alto, garante "suspicious")
+    crit_hits = [kw for kw in _KEYWORDS_CRIT if kw in path_q]
+    if crit_hits:
+        risks.append("palavras_chave_criticas:" + ",".join(crit_hits))
+        score += max(35, 20 + 10*len(crit_hits))  # >=35
+
+    # Palavras comuns (peso cumulativo moderado)
+    hits = [kw for kw in _KEYWORDS if kw in path_q]
+    if hits:
+        risks.append("palavras_chave_suspeitas")
+        score += min(30, 10*len(hits))  # até +30
+
+    ips, err = _resolve_host(host)
+    if not ips:
+        risks.append("dns_falhou"); score += 35
+    else:
+        if any(_is_private_ip(ip) for ip in ips):
+            risks.append("resolve_para_rede_privada"); score += 25
+
+    if parsed.scheme == "https" and host and not parsed.port:
+        days = _cert_days_left(host, 443)
+        if days is not None and days < 0:
+            risks.append("cert_expirado"); score += 25
+        elif days is not None and days <= 7:
+            risks.append("cert_quase_expirando"); score += 10
+
+    final_url, hops, last_status = _follow_redirects(u)
+    http_status = last_status
+    if hops >= 2:
+        risks.append(f"muitos_redirecionamentos_{hops}"); score += 10
+
+    if parsed.scheme == "http":
+        risks.append("sem_https"); score += 10
+
+    spent_ms = int((time.time() - t0) * 1000)
+    if spent_ms > budget_ms:
+        risks.append("estouro_orcamento_ms")
+
+    if score >= 60: decision = "dangerous"
+    elif score >= 30: decision = "suspicious"
+    else: decision = "unknown"
+
+    return HeuristicResult(decision, score, http_status, final_url, hops, risks)

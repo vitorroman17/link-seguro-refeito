@@ -1,0 +1,34 @@
+﻿=== LINK SEGURO :: HEALTCHECK 20250905-152706 ===
+
+[Backend]
+  Local: http://127.0.0.1:8000
+  /docs -> 200
+  /health -> 404
+  Porta ouvindo -> False
+  => PASS
+
+[Frontend]
+  Porta 3000: listening=False http=Impossível conectar-se ao servidor remoto
+  Porta 5173: listening=False http=Impossível conectar-se ao servidor remoto
+  => FAIL
+
+[Tunnel]
+  cloudflared: C:\Program Files (x86)\cloudflared\cloudflared.exe (running=True)
+  cred dir: C:\Users\Noeli\.cloudflared
+  cred usada: C:\Users\Noeli\.cloudflared\66ff7d96-b54e-4cac-ab63-29ab8a448309.json
+  tunnel UUID: 66ff7d96-b54e-4cac-ab63-29ab8a448309
+  config.yml: exists=True path=C:\Users\Noeli\.cloudflared\config.yml
+  => PASS
+
+[Público]
+  hostname: app.vitorroman.com.br
+  CNAME: (nenhum)
+  esperado: 66ff7d96-b54e-4cac-ab63-29ab8a448309.cfargotunnel.com
+  A/AAAA?: True
+  https /docs -> 200
+  DNS OK? => FAIL
+  => PASS
+
+Relatório salvo em:
+  C:\link-seguro-refeito\reports\healthcheck-20250905-152706.txt
+  C:\link-seguro-refeito\reports\healthcheck-20250905-152706.json

@@ -1,0 +1,30 @@
+﻿=== LINK SEGURO :: HEALTHCHECK 20250905-151611 ===
+
+[Backend]
+  Local /docs:      -> N/A
+  Local /health:    -> N/A
+  Porta 8000 ouvindo: 
+  => 
+
+[Frontend]
+  Porta 3000: listening=False http=Impossível conectar-se ao servidor remoto
+  Porta 5173: listening=False http=Impossível conectar-se ao servidor remoto
+  => 
+
+[Tunnel]
+  cloudflared:   (running=)
+  cred dir:     
+  cred usada:   
+  tunnel UUID:  
+  config.yml:   exists= path=
+  => 
+
+[Público]
+  A/AAAA?:    
+  DNS OK?:    
+  https /docs: N/A
+  => 
+
+Relatório salvo em:
+  C:\link-seguro-refeito\reports\healthcheck-20250905-151611.txt
+  C:\link-seguro-refeito\reports\healthcheck-20250905-151611.json

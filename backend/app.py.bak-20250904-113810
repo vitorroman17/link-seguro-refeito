@@ -1,0 +1,441 @@
+import os, json, time, ssl, socket, ipaddress, logging, uuid
+from datetime import datetime, timezone
+from urllib.parse import urlparse, quote
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+APP_NAME = "link-seguro"
+APP_VER  = "1.0.0"
+
+# ====== ENV / FLAGS (podem ser ajustados por ambiente) ======
+ALLOWED_ORIGINS      = [o.strip() for o in os.getenv("ALLOWED_ORIGINS","*").split(",") if o.strip()]
+OTX_API_KEY          = os.getenv("OTX_API_KEY","").strip()
+
+SAFE_HEURISTICS_ENABLED = os.getenv("SAFE_HEURISTICS_ENABLED","1") == "1"
+MIN_DOMAIN_AGE_DAYS     = int(os.getenv("MIN_DOMAIN_AGE_DAYS","365"))
+REQUIRE_HTTPS           = os.getenv("REQUIRE_HTTPS","1") == "1"
+TLS_MIN_DAYS            = int(os.getenv("TLS_MIN_DAYS","30"))
+REQUIRE_HSTS            = os.getenv("REQUIRE_HSTS","1") == "1"
+HSTS_MIN_AGE            = int(os.getenv("HSTS_MIN_AGE","15552000"))  # 180d
+HOMOGLYPH_CHECK         = os.getenv("HOMOGLYPH_CHECK","1") == "1"
+
+# ====== LOGGING JSON ======
+logger = logging.getLogger(APP_NAME)
+logger.setLevel(logging.INFO)
+h = logging.StreamHandler()
+h.setFormatter(logging.Formatter('%(message)s'))
+if not logger.handlers:
+    logger.addHandler(h)
+
+def log_json(level: str, trace_id: str, msg: str, **extra):
+    payload = {"ts": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+               "level": level.upper(), "msg": msg, "trace_id": trace_id, "extra": extra}
+    levelno = getattr(logging, level.upper(), logging.INFO)
+    logger.log(levelno, json.dumps(payload, ensure_ascii=False))
+
+# ====== FASTAPI ======
+app = FastAPI(title=APP_NAME)
+
+if ALLOWED_ORIGINS == ["*"] or "*" in ALLOWED_ORIGINS:
+    cors_kwargs = dict(allow_origins=["*"], allow_credentials=True,
+                       allow_methods=["*"], allow_headers=["*"])
+else:
+    cors_kwargs = dict(allow_origins=ALLOWED_ORIGINS, allow_credentials=True,
+                       allow_methods=["*"], allow_headers=["*"])
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
+
+# ====== MODELOS ======
+class UrlIn(BaseModel):
+    url: str
+
+# ====== CACHE simples (TTL) para domínio ======
+_cache = {
+    "rdap": {},   # host -> (stamp, data)
+    "tls":  {},   # host -> (stamp, data)
+    "hsts": {},   # host -> (stamp, data)
+}
+CACHE_TTL = 3600  # 1h
+
+def _cache_get(kind: str, key: str):
+    item = _cache.get(kind, {}).get(key)
+    if not item: return None
+    stamp, data = item
+    if time.time() - stamp > CACHE_TTL:
+        _cache[kind].pop(key, None)
+        return None
+    return data
+
+def _cache_put(kind: str, key: str, data):
+    _cache.setdefault(kind, {})[key] = (time.time(), data)
+
+# ====== FUNÇÕES AUXILIARES ======
+def _is_ip(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except:
+        return False
+
+def _has_punycode(host: str) -> bool:
+    return any(label.lower().startswith("xn--") for label in host.split("."))
+
+def _url_parts(url: str):
+    try:
+        p = urlparse(url)
+        return p.scheme.lower(), p.hostname or "", p
+    except:
+        return "", "", None
+
+async def rdap_domain_age_days(host: str):
+    if _is_ip(host): return None
+    cached = _cache_get("rdap", host)
+    if cached is not None: return cached
+    try:
+        # RDAP agregador público
+        url = f"https://rdap.org/domain/{host}"
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(url)
+        if r.status_code != 200:
+            _cache_put("rdap", host, None)
+            return None
+        data = r.json()
+        # procurar eventos de criação/registro
+        dt_created = None
+        for ev in (data.get("events") or []):
+            if str(ev.get("eventAction","")).lower() in ("registration","registered","creation"):
+                try:
+                    dt_created = datetime.fromisoformat(ev["eventDate"].replace("Z","+00:00"))
+                    break
+                except:
+                    pass
+        if not dt_created:
+            # fallback: try 'ldhName' sem eventos
+            _cache_put("rdap", host, None)
+            return None
+        days = (datetime.now(timezone.utc) - dt_created).days
+        _cache_put("rdap", host, days)
+        return days
+    except Exception as e:
+        _cache_put("rdap", host, None)
+        return None
+
+def tls_cert_days_left(host: str):
+    if _is_ip(host): return None
+    cached = _cache_get("tls", host)
+    if cached is not None: return cached
+    try:
+        ctx = ssl.create_default_context()
+        with socket.create_connection((host, 443), timeout=5) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                cert = ssock.getpeercert()
+        # 'notAfter' formato: 'Jun  1 12:00:00 2026 GMT'
+        not_after = cert.get("notAfter")
+        if not not_after:
+            _cache_put("tls", host, None)
+            return None
+        exp = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+        days = (exp - datetime.now(timezone.utc)).days
+        _cache_put("tls", host, days)
+        return days
+    except Exception:
+        _cache_put("tls", host, None)
+        return None
+
+async def hsts_info(host: str):
+    cached = _cache_get("hsts", host)
+    if cached is not None: return cached
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(f"https://{host}/")
+        h = r.headers.get("strict-transport-security") or r.headers.get("Strict-Transport-Security")
+        if not h:
+            info = {"present": False, "max_age": 0}
+            _cache_put("hsts", host, info)
+            return info
+        max_age = 0
+        for token in [t.strip() for t in h.split(";")]:
+            if token.lower().startswith("max-age"):
+                try:
+                    max_age = int(token.split("=",1)[1].strip())
+                except:
+                    pass
+        info = {"present": True, "max_age": max_age}
+        _cache_put("hsts", host, info)
+        return info
+    except Exception:
+        info = {"present": False, "max_age": 0}
+        _cache_put("hsts", host, info)
+        return info
+
+def heuristics_decision(url: str) -> str:
+    # Heurística simples existente
+    u = url.lower()
+    red_flags = ["login", "verify", "pix", "boleto", "senha", "secure-payment", "confirmar"]
+    if any(k in u for k in red_flags):
+        return "dangerous" if u.startswith("http://") else "suspicious"
+    if u.startswith("http://"):
+        return "suspicious"
+    return "unknown"
+
+async def check_otx(url: str):
+    if not OTX_API_KEY:
+        # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"used": False, "decision": None, "error": "missing_api_key"}
+    try:
+        enc = quote(url, safe="")
+        headers = {"X-OTX-API-KEY": OTX_API_KEY}
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(f"https://otx.alienvault.com/api/v1/indicators/url/{enc}/general", headers=headers)
+        if r.status_code != 200:
+            # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"used": True, "decision": "unknown", "error": f"otx_{r.status_code}"}
+        data = r.json()
+        pulses = (data.get("pulse_info") or {}).get("count", 0)
+        if pulses and pulses > 0:
+            # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"used": True, "decision": "dangerous", "pulses": pulses}
+        # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"used": True, "decision": "unknown", "pulses": pulses}
+    except Exception as e:
+        # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"used": True, "decision": "unknown", "error": str(e)}
+
+async def likely_safe_decider(url: str):
+    """
+    Retorna (is_likely_safe: bool, details: dict).
+    Regras: HTTPS obrigatório; sem IP; sem punycode; domínio com idade >= MIN_DOMAIN_AGE_DAYS;
+            TLS válido e expira em >= TLS_MIN_DAYS; HSTS presente e max-age >= HSTS_MIN_AGE.
+    """
+    scheme, host, _ = _url_parts(url)
+    details = {
+        "scheme": scheme, "host": host,
+        "is_ip": _is_ip(host),
+        "punycode": _has_punycode(host),
+        "domain_age_days": None,
+        "tls_days_left": None,
+        "hsts": {"present": False, "max_age": 0}
+    }
+
+    if not SAFE_HEURISTICS_ENABLED:
+        return False, details
+
+    if not host:
+        return False, details
+
+    if HOMOGLYPH_CHECK and (details["punycode"] or details["is_ip"]):
+        return False, details
+
+    if REQUIRE_HTTPS and scheme != "https":
+        return False, details
+
+    # RDAP idade
+    details["domain_age_days"] = await rdap_domain_age_days(host)
+    if details["domain_age_days"] is None or details["domain_age_days"] < MIN_DOMAIN_AGE_DAYS:
+        return False, details
+
+    # TLS validade
+    details["tls_days_left"] = tls_cert_days_left(host)
+    if details["tls_days_left"] is None or details["tls_days_left"] < TLS_MIN_DAYS:
+        return False, details
+
+    # HSTS
+    details["hsts"] = await hsts_info(host)
+    if REQUIRE_HSTS and not (details["hsts"]["present"] and details["hsts"]["max_age"] >= HSTS_MIN_AGE):
+        return False, details
+
+    return True, details
+
+# ====== ENDPOINTS ======
+@app.get("/healthz")
+async def healthz():
+    # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"status": "ok", "app": APP_NAME, "version": APP_VER}
+
+@app.post("/validar_link")
+async def validar_link(inp: UrlIn, request: Request):
+    trace_id = str(uuid.uuid4())
+    started  = time.time()
+    url = inp.url.strip()
+
+    log_json("info", trace_id, "request_received", urlhash=str(hash(url))[-16:])
+
+    decision = heuristics_decision(url)
+    source   = "heuristics"
+    extra    = {}
+
+    # 1) OTX — pode sobrepor para 'dangerous'
+    otx_res = await check_otx(url)
+    if otx_res.get("used"):
+        extra["otx"] = {k:v for k,v in otx_res.items() if k != "used"}
+        if otx_res.get("decision") == "dangerous":
+            decision = "dangerous"
+            source   = "otx"
+        elif decision == "unknown" and otx_res.get("decision") == "unknown":
+            source = "heuristics+otx"
+
+    # 2) Likely safe (somente se não for dangerous)
+    if decision != "dangerous":
+        safe_ok, safe_details = await likely_safe_decider(url)
+        extra["safe_check"] = safe_details
+        if safe_ok:
+            decision = "likely_safe"
+            source   = "heuristics+safe" if "otx" not in extra else "safe+otx"
+
+    ms = int((time.time() - started) * 1000)
+    log_json("info", trace_id, "final_decision", decision=decision, source=source, took_ms=ms)
+
+    # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {
+        "status": "success",
+        "decision": decision,
+        "trace_id": trace_id,
+        "source": source,
+        "url": url,
+        "vt_summary": None,
+        "error": None,
+        "took_ms": ms,
+        "http_status": 200,
+        "sent_trace": trace_id,
+        "extra": extra
+    }
+
+# --- safe_check (robusto) ---
+async def safe_check(url: str):
+    from urllib.parse import urlparse
+    try:
+        p = urlparse(url)
+        if p.scheme not in ("http","https") or not p.hostname:
+            # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"ok": False, "status": None, "reason": "bad_scheme_or_host"}
+        async with httpx.AsyncClient(timeout=3.5, follow_redirects=True) as client:
+            r = await client.get(url, headers={"User-Agent":"LinkSeguro/1.0"}, timeout=3.5)
+            code = r.status_code
+        # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"ok": (200 <= code < 400), "status": code}
+    except Exception as e:
+        # --- safe_check post-processing ---
+try:
+    sc = await safe_check(url)
+except Exception as _e:
+    sc = {"ok": False, "status": None, "error": str(_e)[:120]}
+try:
+    extra
+except NameError:
+    extra = {}
+extra["safe_check"] = sc
+if decision in ("unknown","suspicious") and sc and sc.get("ok"):
+    decision = "likely_safe"
+    source = f"{source}+safecheck" if source else "safecheck"
+return {"ok": False, "status": None, "error": str(e)[:120]}
+

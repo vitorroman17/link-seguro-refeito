@@ -1,0 +1,16 @@
+
+services:
+  backend:
+    build: ./backend
+    environment:
+      - VT_API_KEY=${VT_API_KEY}
+      - ALLOWED_ORIGINS=http://localhost:99
+      - VT_TIMEOUT=8.0
+    ports:
+      - "8980:8000"
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "99:80"

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Link Seguro</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <main class="wrap">
+    <header class="topbar">
+      <h1 class="app-title">🔒 <span data-i18n="title">Link Seguro</span></h1>
+
+      <nav class="lang-switch" aria-label="Selecionar idioma">
+        <button class="pill" data-lang="pt">🇧🇷 PT</button>
+        <button class="pill" data-lang="en">🇺🇸 EN</button>
+        <button class="pill" data-lang="es">🇪🇸 ES</button>
+        <button class="pill" data-lang="fr">🇫🇷 FR</button>
+      </nav>
+    </header>
+
+    <p class="subtitle" data-i18n="subtitle">
+      Verifique links de compras e possíveis golpes
+    </p>
+
+    <section class="card input-card" aria-label="Validador de link">
+      <form id="linkForm" autocomplete="off" novalidate>
+        <input type="url" id="linkInput" class="url" inputmode="url" placeholder="https://exemplo.com"
+          aria-label="Cole o link aqui" required />
+        <button id="btnValidar" class="cta" type="submit" data-i18n="validate">
+          Validar Link
+        </button>
+      </form>
+
+      <p class="hint" data-i18n="hint">
+        Dica: o endereço deve começar com <code>http://</code> ou <code>https://</code>.
+      </p>
+
+      <div id="resultado" class="result" aria-live="polite" aria-atomic="true">
+        <!-- status pill + mensagem aparecem via JS -->
+      </div>
+    </section>
+
+    <!-- CTA “Como me proteger” -->
+    <button id="btnProtecao" class="guard-cta" aria-controls="boxProtecao" aria-expanded="false"
+      data-i18n="protect_cta_safe">
+      🛡️ Veja como se proteger
+    </button>
+
+    <!-- Painel de dicas de proteção -->
+    <section id="boxProtecao" class="protect card hidden" role="region" aria-label="Dicas de proteção">
+      <h2 data-i18n="protect_title">Como se proteger</h2>
+
+      <div class="tips-grid">
+        <article class="tip">
+          <h3>🛍️ <span data-i18n="tip_shop_title">Compras on-line</span></h3>
+          <ul id="tip_shop_list" class="bullet"></ul>
+        </article>
+
+        <article class="tip">
+          <h3>✉️ <span data-i18n="tip_link_title">Links recebidos (e-mail/WhatsApp)</span></h3>
+          <ul id="tip_link_list" class="bullet"></ul>
+        </article>
+
+        <article class="tip">
+          <h3>🚨 <span data-i18n="tip_scam_title">Se achar que caiu em golpe</span></h3>
+          <ul id="tip_scam_list" class="bullet"></ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="card admin" aria-label="Painel Administrativo">
+      <h2>📊 <span data-i18n="admin_title">Painel Administrativo</span></h2>
+      <ul class="bullet">
+        <li><span data-i18n="admin_inst">Instituições ativas</span>: 10</li>
+        <li><span data-i18n="admin_block">Links bloqueados/mês</span>: 5.000</li>
+        <li><span data-i18n="admin_users">Usuários capacitados</span>: 50</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+
+</html>

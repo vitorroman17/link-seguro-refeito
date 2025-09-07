@@ -1,0 +1,110 @@
+import os, re, time, json, uuid, urllib.parse
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import httpx
+
+APP_NAME = "link-seguro"
+APP_VERSION = "1.0.0"
+
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500").split(",") if o.strip()]
+OTX_API_KEY = os.getenv("OTX_API_KEY","").strip()
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS or ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class LinkReq(BaseModel):
+    url: str
+
+def _log(level: str, msg: str, **extra):
+    payload = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "level": level, "msg": msg}
+    if extra: payload["extra"] = extra
+    print(json.dumps(payload, ensure_ascii=False))
+
+def heuristic_decision(url: str) -> str:
+    u = url.lower().strip()
+    suspect_words = [
+        "pix", "boleto", "senha", "login", "secure", "payment", "verify", "conta", "bank",
+        "parcel", "premio", "ganhador", "rastreio", "atualiza", "suporte", "suporte-tecnico",
+        "whatsapp", "confirma", "cartao", "credito", "token"
+    ]
+    danger_words = ["pix", "boleto", "senha", "login", "verify", "payment", "conta", "bank"]
+    hyphen_in_host = bool(re.search(r"://[^/]*?-[^/]*?\.", u))
+    many_params = u.count("&") >= 2 or u.count("?") >= 1
+
+    if any(w in u for w in danger_words) and (hyphen_in_host or many_params):
+        return "dangerous"
+    if any(w in u for w in suspect_words) or hyphen_in_host or many_params:
+        return "suspicious"
+    return "unknown"
+
+async def check_otx(url: str):
+    if not OTX_API_KEY:
+        return {"used": False, "decision": None, "error": "missing_api_key"}
+    try:
+        enc = urllib.parse.quote(url, safe="")
+        headers = {"X-OTX-API-KEY": OTX_API_KEY}
+        timeout = httpx.Timeout(6.0, connect=3.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.get(f"https://otx.alienvault.com/api/v1/indicators/url/{enc}/general", headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            pulses = (data.get("pulse_info") or {}).get("count", 0) or 0
+            # Regra simples: se associado a pulses (campanhas), tratar como perigoso
+            decision = "dangerous" if pulses > 0 else "unknown"
+            return {"used": True, "decision": decision, "pulses": pulses, "raw_status": 200}
+        return {"used": True, "decision": None, "error": f"http_{r.status_code}"}
+    except Exception as e:
+        return {"used": True, "decision": None, "error": str(e)}
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok", "app": APP_NAME, "version": APP_VERSION}
+
+@app.post("/validar_link")
+async def validar_link(req: LinkReq):
+    started = time.perf_counter()
+    trace_id = str(uuid.uuid4())
+    url = req.url.strip()
+
+    _log("INFO", "request_received", trace_id=trace_id, urlhash=hash(url) & 0xFFFFFFFF)
+
+    # 1) Heurística local imediata
+    h_dec = heuristic_decision(url)
+    _log("INFO", "heuristic_decision", trace_id=trace_id, decision=h_dec)
+
+    decision = h_dec
+    source = "heuristics"
+    extra = {}
+
+    # 2) OTX (se chave presente) — pode sobrepor para 'dangerous'
+    otx_res = await check_otx(url)
+    if otx_res.get("used"):
+        extra["otx"] = {k: v for k, v in otx_res.items() if k not in ("used",)}
+        if otx_res.get("decision") == "dangerous":
+            decision = "dangerous"
+            source = "otx"
+        elif decision == "unknown" and otx_res.get("decision") == "unknown":
+            source = "heuristics+otx"
+
+    took = int((time.perf_counter() - started) * 1000)
+    resp = {
+        "status": "success",
+        "decision": decision,
+        "trace_id": trace_id,
+        "source": source,
+        "url": url,
+        "vt_summary": None,
+        "error": None,
+        "took_ms": took,
+        "http_status": 200,
+        "sent_trace": trace_id,
+        "extra": extra or None
+    }
+    return resp

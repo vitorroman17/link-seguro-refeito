@@ -1,0 +1,18 @@
+INFO:     Will watch for changes in these directories: ['E:\\link-seguro-refeito\\backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [32172] using WatchFiles
+INFO:     Started server process [30984]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:21291 - "GET /healthz HTTP/1.1" 200 OK
+INFO:     127.0.0.1:26844 - "OPTIONS /validar_link HTTP/1.1" 200 OK
+{"ts":"2025-09-02T12:05:42-0300","level":"INFO","msg":"request_received","trace_id":"81f33e54-bd14-4bc7-8ccc-6831400a84a3","extra":{"urlhash":"2cf69260ba1f6db8"}}
+{"ts":"2025-09-02T12:05:42-0300","level":"INFO","msg":"heuristic_decision","trace_id":"81f33e54-bd14-4bc7-8ccc-6831400a84a3","extra":{"urlhash":"2cf69260ba1f6db8","decision":"unknown"}}
+INFO:     127.0.0.1:26844 - "POST /validar_link HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64110 - "OPTIONS /validar_link HTTP/1.1" 200 OK
+{"ts":"2025-09-02T12:08:50-0300","level":"INFO","msg":"request_received","trace_id":"d5be8d40-35c1-4843-9688-b4593e01be58","extra":{"urlhash":"2cf69260ba1f6db8"}}
+{"ts":"2025-09-02T12:08:50-0300","level":"INFO","msg":"heuristic_decision","trace_id":"d5be8d40-35c1-4843-9688-b4593e01be58","extra":{"urlhash":"2cf69260ba1f6db8","decision":"unknown"}}
+INFO:     127.0.0.1:64110 - "POST /validar_link HTTP/1.1" 200 OK
+{"ts":"2025-09-02T12:14:52-0300","level":"INFO","msg":"request_received","trace_id":"1f3219a6-1a79-43b7-aef2-b364743e3abd","extra":{"urlhash":"2cf69260ba1f6db8"}}
+{"ts":"2025-09-02T12:14:52-0300","level":"INFO","msg":"heuristic_decision","trace_id":"1f3219a6-1a79-43b7-aef2-b364743e3abd","extra":{"urlhash":"2cf69260ba1f6db8","decision":"unknown"}}
+INFO:     127.0.0.1:56308 - "POST /validar_link HTTP/1.1" 200 OK

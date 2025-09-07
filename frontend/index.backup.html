@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Verificador de Link</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a1a;
+      --muted: #636e72;
+      --border: #e6e6e6;
+      --ok: #2e7d32;
+      --warn: #ef6c00;
+      --bad: #c62828;
+      --unk: #616161;
+      --focus: #2962ff;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 18px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px 16px
+    }
+
+    header h1 {
+      margin: 0 0 8px 0;
+      font-size: 28px
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px
+    }
+
+    .card {
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, .04);
+    }
+
+    label {
+      display: block;
+      margin: 8px 0 6px;
+      font-weight: 600
+    }
+
+    .row {
+      display: flex;
+      gap: 10px
+    }
+
+    input[type="url"] {
+      flex: 1;
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 18px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      outline: none;
+      background: #fff;
+    }
+
+    input[type="url"]:focus {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px rgba(41, 98, 255, .12)
+    }
+
+    button {
+      padding: 14px 18px;
+      font-size: 18px;
+      font-weight: 700;
+      border-radius: 12px;
+      border: 1px solid #dcdcdc;
+      background: #f6f7f9;
+      cursor: pointer;
+      min-height: 52px;
+      min-width: 120px;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed
+    }
+
+    .hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 16px
+    }
+
+    .result {
+      display: none;
+      margin-top: 8px;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fafafa;
+      text-align: center;
+    }
+
+    .result.visible {
+      display: block
+    }
+
+    .decision {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      margin-bottom: 8px;
+      border: 1px solid #ddd;
+    }
+
+    .d-clean {
+      color: var(--ok);
+      background: #eaf6ec;
+      border-color: #d6ead9
+    }
+
+    .d-suspicious {
+      color: var(--warn);
+      background: #fff3e6;
+      border-color: #ffe1bf
+    }
+
+    .d-malicious {
+      color: var(--bad);
+      background: #ffe9e9;
+      border-color: #ffd0d0
+    }
+
+    .d-unknown {
+      color: var(--unk);
+      background: #f1f3f4;
+      border-color: #e4e6e8
+    }
+
+    .msg {
+      margin: 0;
+      font-size: 18px
+    }
+
+    .error {
+      color: var(--bad)
+    }
+
+    footer {
+      margin: 24px 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px
+    }
+
+    /* Acessibilidade móvel */
+    @media (max-width:720px) {
+      .row {
+        flex-direction: column
+      }
+
+      button {
+        width: 100%
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Verificador de Link</h1>
+      <p>Simples, rápido e claro.</p>
+    </header>
+
+    <section class="card" aria-labelledby="lbl-url">
+      <label id="lbl-url" for="url">Cole o link abaixo</label>
+      <div class="row">
+        <input id="url" type="url" inputmode="url" placeholder="https://exemplo.com" autocomplete="off"
+          aria-describedby="hint" />
+        <button id="checkBtn" disabled>Verificar</button>
+      </div>
+      <div id="hint" class="hint">Dica: o endereço deve começar com <code>http://</code> ou <code>https://</code>.</div>
+
+      <div id="result" class="result" role="status" aria-live="polite">
+        <div id="decision" class="decision d-unknown">—</div>
+        <p id="message" class="msg">Aguardando…</p>
+      </div>
+      <div id="error" class="hint error" style="display:none;"></div>
+    </section>
+
+    <footer>Funciona em celulares • Visual limpo • Sem anúncios</footer>
+  </div>
+
+  <script>
+    (function () {
+      const API = "http://127.0.0.1:8000";
+      const urlEl = document.getElementById("url");
+      const btn = document.getElementById("checkBtn");
+      const hint = document.getElementById("hint");
+      const resBox = document.getElementById("result");
+      const badge = document.getElementById("decision");
+      const msg = document.getElementById("message");
+      const err = document.getElementById("error");
+
+      const mapDecision = (d) => {
+        switch (d) {
+          case "clean": return { text: "SEGURO", cls: "d-clean", note: "Este link parece seguro." };
+          case "malicious": return { text: "PERIGOSO", cls: "d-malicious", note: "Não recomendamos abrir este link." };
+          case "suspicious": return { text: "SUSPEITO", cls: "d-suspicious", note: "Cuidado. Pode ser arriscado." };
+          default: return { text: "DESCONHECIDO", cls: "d-unknown", note: "Não foi possível confirmar com certeza." };
+        }
+      };
+
+      function setBusy(b) {
+        btn.disabled = b || !/^https?:\/\//i.test(urlEl.value.trim());
+        urlEl.disabled = !!b;
+      }
+
+      urlEl.addEventListener("input", () => setBusy(false));
+      urlEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && !btn.disabled) doCheck(); });
+      btn.addEventListener("click", doCheck);
+
+      async function doCheck() {
+        const url = urlEl.value.trim();
+        err.style.display = "none";
+        if (!/^https?:\/\//i.test(url)) {
+          err.textContent = "Digite um endereço válido (começando com http:// ou https://).";
+          err.style.display = "block";
+          return;
+        }
+        setBusy(true);
+        resBox.classList.add("visible");
+        badge.className = "decision d-unknown";
+        badge.textContent = "ANALISANDO…";
+        msg.textContent = "Por favor, aguarde.";
+        try {
+          const trace = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+          const resp = await fetch(API + "/validar_link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Request-Id": trace },
+            body: JSON.stringify({ url })
+          });
+          const data = await resp.json().catch(() => ({}));
+          const m = mapDecision(data.decision || "unknown");
+          badge.className = "decision " + m.cls;
+          badge.textContent = m.text;
+          msg.textContent = m.note;
+          // logs só no console (não aparece na tela)
+          console.log("[resultado]", { trace_id: data.trace_id, decision: data.decision, took_ms: data.took_ms });
+        } catch (e) {
+          badge.className = "decision d-unknown";
+          badge.textContent = "ERRO";
+          msg.textContent = "Não foi possível verificar agora. Tente novamente.";
+          console.log("[erro]", String(e));
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      // estado inicial
+      setBusy(false);
+    })();
+  </script>
+</body>
+
+</html>

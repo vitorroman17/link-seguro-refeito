@@ -1,0 +1,75 @@
+﻿{
+    "timestamp":  "20250905-153138",
+    "backend":  {
+                    "local_url":  "http://127.0.0.1:8000",
+                    "docs":  {
+                                 "ok":  true,
+                                 "url":  "http://127.0.0.1:8000/docs",
+                                 "status":  200
+                             },
+                    "health":  {
+                                   "ok":  false,
+                                   "url":  "http://127.0.0.1:8000/health",
+                                   "error":  "O servidor remoto retornou um erro: (404) Não Localizado.",
+                                   "status":  404
+                               },
+                    "port_listening":  false,
+                    "summary":  "PASS"
+                },
+    "frontend":  [
+                     {
+                         "ports":  [
+                                       3000,
+                                       5173
+                                   ],
+                         "checks":  [
+                                        {
+                                            "port":  3000,
+                                            "listening":  false,
+                                            "http":  {
+                                                         "ok":  false,
+                                                         "url":  "http://127.0.0.1:3000",
+                                                         "error":  "Impossível conectar-se ao servidor remoto",
+                                                         "status":  null
+                                                     }
+                                        },
+                                        {
+                                            "port":  5173,
+                                            "listening":  false,
+                                            "http":  {
+                                                         "ok":  false,
+                                                         "url":  "http://127.0.0.1:5173",
+                                                         "error":  "Impossível conectar-se ao servidor remoto",
+                                                         "status":  null
+                                                     }
+                                        }
+                                    ],
+                         "summary":  "FAIL"
+                     }
+                 ],
+    "tunnel":  {
+                   "cloudflared_path":  "C:\\Program Files (x86)\\cloudflared\\cloudflared.exe",
+                   "cloudflared_running":  true,
+                   "credentials_dir":  "C:\\Users\\Noeli\\.cloudflared",
+                   "credential_used":  "C:\\Users\\Noeli\\.cloudflared\\66ff7d96-b54e-4cac-ab63-29ab8a448309.json",
+                   "tunnel_uuid":  "66ff7d96-b54e-4cac-ab63-29ab8a448309",
+                   "config_yml":  {
+                                      "exists":  true,
+                                      "path":  "C:\\Users\\Noeli\\.cloudflared\\config.yml"
+                                  },
+                   "summary":  "PASS"
+               },
+    "public":  {
+                   "hostname":  "app.vitorroman.com.br",
+                   "cname":  null,
+                   "cname_expected":  "66ff7d96-b54e-4cac-ab63-29ab8a448309.cfargotunnel.com",
+                   "has_A_or_AAAA":  true,
+                   "https_docs":  {
+                                      "ok":  true,
+                                      "url":  "https://app.vitorroman.com.br/docs",
+                                      "status":  200
+                                  },
+                   "dns_ok":  "FAIL",
+                   "summary":  "PASS"
+               }
+}
